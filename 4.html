@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+
+<script>
+ const number_char = "0123456789";
+
+ const var_char = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$"
+
+ const var_members_char = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$[].'\"";
+
+    const state = {
+        initial: "initial", // 初始状态
+        number: "number", // 数字状态
+        variable: "var", // 变量状态
+        symbol: "symbol", // ><=符号状态
+        percent: "percent", // 百分号状态
+        round: "round", // 舍入相关状态
+        plus: "plus", // 加号状态
+        comma: "comma", // 逗号状态
+        fraction: "fraction", // 分数
+        to_number: "to-number", // 表示格式化成数字的标识符
+        to_number_string: "to-number-string", // 表示格式化成数字字符串
+        scientific: "scientific", // 科学计数法表示
+
+    };
+
+    function push_token(tokens, curr_state, value, index, curr)
+    {
+        if (curr_state === state.variable)
+        {
+            let real_value;
+            if (curr.fill_data === undefined)
+            {
+                throw new Error(`未提供变量${temp}的数据源`)
+            }
+            for (let i = 0, len = curr.fill_data.length; i < len; i++)
+            {
+                real_value = get(curr.fill_data[i], value) ?? undefined;
+                if (real_value !== undefined) break;
+            }
+
+            if (real_value === undefined) throw new Error(`填充变量${temp}失败`)
+            tokens.push({type: curr_state, value, real_value})
+        }
+        else
+        {
+            tokens.push({type: curr_state, value})
+
+
+        }
+        index.prev = index.curr;
+        curr.state = state.initial;
+    }
+
+
+    function fmt_tokenizer(fmt_str, fill_data)
+    {
+        let has_var = false;
+
+        let index = {prev: 0, curr: 0};
+        let len = fmt_str.length;
+
+        let curr = {state: state.initial, fill_data};
+        let char;
+        let tokens = [];
+
+
+        while (index.curr < len)
+        {
+            char = fmt_str[index.curr];
+            switch (curr.state)
+            {
+                case state.initial:
+                    if (char === " ")
+                    {
+                        index.curr++;
+                        index.prev = index.curr;
+                    }
+                    else if ("<>=".includes(char))
+                    {
+                        curr.state = state.symbol;
+                        index.curr++;
+                    }
+                    else if (char === ",")
+                    {
+                        index.curr++;
+                        push_token(tokens, state.comma, ",", index, curr);
+                    }
+                    else if (var_char.includes(char))
+                    {
+                        curr.state = state.variable;
+                        index.curr++;
+                    }
+                    else if (number_char.includes(char))
+                    {
+                        curr.state = state.number;
+                        index.curr++;
+                    }
+                    else if (char === "+")
+                    {
+                        index.curr++;
+                        push_token(tokens, state.plus, "+", index, curr)
+                    }
+                    else if (char === "~")
+                    {
+                        index.curr++;
+                        curr.state = state.round;
+                    }
+                    else if (char === "%")
+                    {
+                        index.curr++;
+                        push_token(tokens, state.percent, "%", index, curr)
+                    }
+                    else if (char === "/")
+                    {
+                        index.curr++;
+                        push_token(tokens, state.fraction, "/", index, curr)
+                    }
+                    else if (char === "!")
+                    {
+                        curr.state = state.initial;
+                        index.curr++;
+
+                        if ("n" === fmt_str[index.curr])
+                        {
+                            index.curr++;
+                            push_token(tokens, state.to_number, "!n", index, curr)
+                        }
+                        else if ("u" === fmt_str[index.curr])
+                        {
+                            index.curr++;
+                            push_token(tokens, state.to_number_string, "!u", index, curr)
+                        }
+                        else if ("e" === fmt_str[index.curr])
+                        {
+                            index.curr++;
+                            push_token(tokens, state.scientific, "!e", index, curr)
+                        }
+                        else
+                        {
+                            throw new Error(`无法识别的!模式字符:${fmt_str[index.curr]}`)
+                        }
+                    }
+                    else
+                    {
+                        // 如果有不识别的字符那么跳过，之前是报错，现在不报错了
+                        index.curr++;
+                        index.prev = index.curr;
+                    }
+                    break;
+                case state.symbol:
+                    if ("=" === char)
+                    {
+                        index.curr++; // 有第二个才需要消耗
+                    }
+                    push_token(tokens, state.symbol, fmt_str.slice(index.prev, index.curr), index, curr);
+                    break;
+                case state.number:
+                    if (number_char.includes(char))
+                    {
+                        index.curr++
+                    }
+                    else
+                    {
+                        push_token(tokens, state.number, fmt_str.slice(index.prev, index.curr), index, curr)
+                    }
+                    break;
+                case state.variable:
+                    if (var_members_char.includes(char))
+                    {
+                        index.curr++;
+                    }
+                    else
+                    {
+                        push_token(tokens, state.variable, fmt_str.slice(index.prev, index.curr), index, curr)
+                    }
+                    break;
+                case state.round:
+                    if ("56+-".includes(char) && index.curr - index.prev < 2)
+                    {
+                        index.curr++;
+                        push_token(tokens, state.round, fmt_str.slice(index.prev, index.curr), index, curr)
+                    }
+                    else
+                    {
+                        throw new Error(`错误的舍入语法:${fmt_str.slice(index.prev, index.curr + 1)}`)
+                    }
+                    break;
+                default:
+                    throw new Error(`错误的fmt分词器状态`)
+
+            }
+        }
+
+        if (index.prev < index.curr)
+        {
+            push_token(tokens, curr.state, fmt_str.slice(index.prev, index.curr), index, curr)
+        }
+
+        return tokens;
+
+    }
+
+
+    // alert("start")
+    // debugger
+    // console.log(fmt_tokenizer(" <=1 ~6,"))
+
+ console.log(fmt_tokenizer(" =b", [{a: 100.23, b: 0}]))
+</script>
+</body>
+</html>

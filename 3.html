@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+
+<script>
+
+    function split_unit_num(unit_num_str)
+    {
+        // 分离单位数字, 返回一个对象, num 属性保存数字 unit保存单位
+        let unit;
+        let num;
+        let m;
+        let unit_num_reg_arr = [/^([+-]?[\d.]+(?:e|E)(?:\+|-)?\d+)(.*)$/, /^([+-]?[\d.]+)(.*)$/]; // 这个还不能颠倒，因为第二个正则会把科学计数法解析错误
+        // 分多钟情况来分割单位， 精准匹配科学计数法或者精准匹配数字
+        for (let i = 0; i < unit_num_reg_arr.length; i++)
+        {     // 如果只要有一个匹配的就设置匹配后的值并跳出
+            let mt = unit_num_str.match(unit_num_reg_arr[i]);
+            if (mt)
+            {
+                m = mt;
+                break;
+            }
+        }
+        if (m)
+        {
+            num = m[1];
+            let _unit = m[2];
+            if (_unit.trim() !== "")
+            {
+                unit = _unit;
+            }
+        }
+
+
+        return {
+            num,
+            unit
+        };
+
+    }
+
+    const get = (value, path, defaultValue) =>
+    {
+        const segments = path.split(/[\.\[\]]/g);
+        let current = value;
+        for (const key of segments)
+        {
+            if (current === null)
+                return defaultValue;
+            if (current === void 0)
+                return defaultValue;
+            const dequoted = key.replace(/['"]/g, "");
+            if (dequoted.trim() === "")
+                continue;
+            current = current[dequoted];
+        }
+        if (current === void 0)
+            return defaultValue;
+        return current;
+    };
+    const state = {
+        initial: "initial", // 初始状态
+        number: "number", // 这个数字可能包含正负号
+        scientific: "scientific", // 科学计数法
+        operator: "operator", // 运算符
+        bracket: "bracket", // 括号状态
+        var: "var", // 变量状态
+
+    };
+
+    function tokenizer(expr, fill_data, _unit)
+    {
+
+        let has_var = false;
+        let has_unit = false;
+        let unit_str;
+
+        let cur_index = 0; // 当前的指针位置
+        let prev_index = 0; // 上一个指针位置，两个位置之间的内容就是要获取的
+        let len = expr.length; // 获取表达式的长度
+        let curr_state = state.initial; // 当前状态
+        let cur;
+
+        let tokens = [];
+
+        function push_token()
+        {
+            if (curr_state === state.number || curr_state === state.scientific)
+            {
+                let prev_str = expr.slice(prev_index, cur_index);
+                if (_unit)
+                {
+                    // 有单位的情况和没有单位的情况不同
+                    let {num, unit} = split_unit_num(prev_str);
+                    if (unit === undefined)
+                    {
+                        tokens.push({type: state.number, value: num, has_unit: false});
+                    }
+                    else
+                    {
+                        has_unit = true;
+                        unit_str ??= unit;
+                        tokens.push({type: state.number, value: num, has_unit: true, unit});
+                    }
+                }
+                else
+                {
+                    // 这里不做索引+1，因为当前的字符是不消耗的
+                    tokens.push({type: state.number, value: prev_str, has_unit: false})
+
+                }
+            }
+            else if (curr_state === state.var)
+            {
+                has_var = true; // 记录tokens是否存在变量
+                let real_value;
+                let prev_str = expr.slice(prev_index, cur_index);
+
+                for (let i = 0, len = fill_data.length; i < len; i++)
+                {
+                    real_value = get(fill_data[i], prev_str) ?? undefined;
+                    if (real_value !== undefined) break;
+                }
+                if (real_value === undefined)
+                    throw new Error(`token填充失败:${temp_v}`)
+                if (_unit)
+                {
+                    // 如果有单位那么要识别可能得单位
+                    let {num, unit} = split_unit_num(real_value);
+                    if (unit === undefined)
+                    {
+                        tokens.push({type: "var", value: prev_str, real_value: num, has_unit: false}); // 这里就不区分科学计数法了，没必要
+                    }
+                    else
+                    {
+                        has_unit = true
+                        unit_str ??= unit
+                        tokens.push({type: "var", value: prev_str, real_value: num, has_unit: true, unit}); // 这里就不区分科学计数法了，没必要
+                    }
+                }
+                else
+                {
+                    tokens.push({type: "var", value: prev_str, real_value, has_unit: false})
+                }
+            }
+            else
+            {
+                tokens.push({type: curr_state, value: expr.slice(prev_index, cur_index)})
+            }
+
+            curr_state = state.initial;
+            prev_index = cur_index;
+        }
+
+        while (cur_index < len)
+        {
+            cur = expr[cur_index];
+            switch (curr_state)
+            {
+                case state.initial:
+                    if (/\d/.test(cur))
+                    {
+                        curr_state = state.number;
+                        cur_index++;
+                    }
+                    else if (/\s/.test(cur))
+                    {
+                        // push_token()
+                        cur_index++;
+                        prev_index = cur_index;
+                    }
+                    else if ("+-".includes(cur))
+                    {
+                        let last_token = tokens.at(-1);
+                        if (cur_index === 0 || last_token?.type === "operator" || last_token?.value === "(")
+                        {
+                            // 以上几种情况说明是带正负号的数字
+                            curr_state = state.number;
+                            cur_index++;
+                        }
+                        else
+                        {
+                            // 这个情况就是加减符号了，直接可以确认token
+                            cur_index++
+                            tokens.push({type: state.operator, value: expr.slice(prev_index, cur_index)})
+                            prev_index = cur_index;
+                        }
+                    }
+                    else if ("*/%".includes(cur))
+                    {
+                        curr_state = state.operator;
+                        cur_index++;
+                    }
+                    else if (/[a-zA-Z_$]/.test(cur))
+                    {
+                        curr_state = state.var;
+                        cur_index++;
+                    }
+
+                    else if ("()".includes(cur))
+                    {
+                        // 这个直接可以确认token
+                        tokens.push({type: state.bracket, value: cur})
+                        curr_state = state.initial;
+                        cur_index++;
+                        prev_index = cur_index;
+                    }
+                    else
+                    {
+                        throw new Error(`无法识别的字符${curr}`)
+                    }
+                    break;
+                case state.number:
+                    // 只有这里可能会将状态转变成科学计数法的状态
+                    if (/\d/.test(cur))
+                    {
+                        cur_index++;
+                    }
+                    else if (cur === ".")
+                    {
+                        if (cur_index === prev_index || expr.slice(prev_index, cur_index).includes("."))
+                        {
+                            throw new Error(`非法的小数部分${expr.slice(prev_index, cur_index)}`)
+                        }
+                        else
+                        {
+                            cur_index++;
+                        }
+                    }
+                    else if (cur === "e")
+                    {
+                        curr_state = state.scientific;
+                        cur_index++;
+                    }
+                    else if (["on", true].includes(_unit) && /[^*/+\-()\s]/.test(cur))
+                    {
+                        // 这个是带单位的情况
+                        cur_index++;
+                    }
+                    else
+                    {
+                        push_token()
+                    }
+                    break;
+                case state.operator:
+                    // 进入到这里缓存肯定已经有一个运算符了，这里只需要判断**和//的情况即可,也就是幂运算和整除运算
+                    let last_char = expr[cur_index - 1];
+                    if (cur === "*" && last_char === "*")
+                    {
+                        // 说明是 ** 幂运算符
+                        cur_index++; // 这里存在消耗字符
+                        tokens.push({type: state.operator, value: "**"})
+                        prev_index = cur_index;
+                    }
+                    else if (cur === "/" && last_char === "/")
+                    {
+                        // 说明是取整运算符
+                        cur_index++;
+                        tokens.push({type: state.operator, value: "//"});
+                        prev_index = cur_index;
+                    }
+                    else
+                    {
+                        // 这里说明不是运算符那么直接保存之前的内容并切换状态,这里不消耗字符
+                        tokens.push({type: state.operator, value: last_char});
+                        prev_index = cur_index
+                    }
+                    curr_state = state.initial;
+                    break;
+                case state.var:
+                    if (/[\w_.\[\]"']/.test(cur))
+                    {
+                        cur_index++;
+                    }
+                    else
+                    {
+                        push_token();
+                    }
+                    break;
+                case state.scientific:
+                    if (/\d/.test(cur))
+                    {
+                        cur_index++;
+                    }
+                    else if ("+-".includes(cur))
+                    {
+                        let prev_str = expr.slice(prev_index, cur_index);
+                        let last_char = prev_str.at(-1);
+                        if (prev_str.includes(cur) || "e" !== last_char)
+                        {
+                            // 如果已经有加减号了或者上一个字符不是e那么就不是科学技术法的一部分了,这里不消耗字符
+                            push_token();
+
+                        }
+                        else
+                        {
+                            cur_index++;
+                        }
+                    }
+                    else if (["on", true].includes(_unit) && /[^*/+\-()\s]/.test(cur))
+                    {
+                        cur_index++;
+                    }
+                    else
+                    {
+                        // 这里啥都没命中久不消耗字符
+                        push_token();
+                    }
+                    break;
+                default:
+                    throw new Error("字符扫描状态错误");
+            }
+        }
+
+        if (prev_index < cur_index)
+        {
+            push_token();
+        }
+
+
+        tokens.has_var = has_var;
+        tokens.has_unit = has_unit;
+        tokens.unit = unit_str;
+        return tokens;
+
+    }
+    debugger
+    console.log(tokenizer("1kk + 1n", null, true))
+</script>
+</body>
+</html>

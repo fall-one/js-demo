@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+<script type="module">
+    import deep_equal from "./node_modules/deep-eql/index.js";
+
+
+    const operator_map = {
+        "+": 0,
+        "-": 0,
+        "*": 1,
+        "/": 1,
+        "%": 1,
+        "**": 2
+    }
+
+    const tokens = ["1", "+", "2", "+", "3", "+", "4", "-", "4"];
+
+    const result = {
+        type: "expr",
+        value1: {type: "number", value: "1"},
+        operator: "+",
+        value2: {
+            type: "expr",
+            value1: {type: "number", value: "2"},
+            operator: "+",
+            value2: {
+                type: "expr",
+                value1: {type: "number", value: "3"},
+                operator: "+",
+                value2: {type: "number", value: "4"}
+            }
+        }
+    }
+
+    const tokens2 = ["1", "+", "2", "*", "3"]
+
+    const tokens3 = ["1", "*", "2", "+", "3"];
+
+
+    const tokens4 = ["1", "*", "2", "*", "3", "+", "4", "*", "5", "*", "6", "-", "9", "/", "1"]
+
+    const tokens5 = ["1", "*", "2", "**", "3", "-", "1"]
+
+    const tokens6 = ["1", "-", "2", "+", "3"];
+
+
+    const ast4 = {
+        type: "expr",
+        value1: {
+            type: "expr",
+            value1: {type: "number", value: "1"},
+            operator: "*",
+            value2: {
+                type: "expr",
+                value1: {type: "number", value: "2"},
+                operator: "*",
+                value2: {type: "number", value: "3"}
+            }
+        },
+        operator: "+",
+        value2: {
+            type: "expr",
+            value1: {type: "number", value: "4"},
+            operator: "*",
+            value2: {type: "number", value: "5"}
+        }
+    }
+
+
+    function parser(tokens)
+    {
+        const operator = [];
+        const numbers = [];
+
+        let cur;
+        while (cur = tokens.shift())
+        {
+
+            // 处理括号，优先级最高
+            if (cur === "(")
+            {
+                operator.push(cur)
+                continue;
+            }
+            if (cur === ")")
+            {
+                let op;
+                while (op = operator.pop())
+                {
+                    if (op === "(")
+                    {
+                        break;
+                    } else
+                    {
+                        const value2 = numbers.pop();
+                        const value1 = numbers.pop();
+                        numbers.push({type: "expr", value1, value2, operator: op})
+                    }
+                }
+                continue;
+            }
+            if (/^[\d.]+$/.test(cur))
+            {
+                numbers.push({type: "number", value: cur})
+                continue;
+            }
+            if (cur in operator_map)
+            {
+                // 这里的都是符号
+                let last_op = operator.at(-1);
+                if (last_op === "(")
+                {
+                    operator.push(cur);
+                    continue;
+                }
+                const level = operator_map[cur]
+                if (!operator.length)
+                {
+                    operator.push(cur);
+                    continue;
+                }
+                if (level < operator_map[last_op])
+                {
+
+
+                    let op;
+                    while (op = operator.pop())
+                    {
+                        if (op === "(")
+                        {
+                            break;
+                        } else
+                        {
+                            const value2 = numbers.pop();
+                            const value1 = numbers.pop();
+                            numbers.push({type: "expr", value1, value2, operator: op})
+                        }
+                    }
+
+
+                } else if (level === operator_map[last_op])
+                {
+                    if (cur === "**")
+                    {
+                        operator.push(cur);
+                        continue
+                    } else
+                    {
+                        let op;
+                        while (op = operator.pop())
+                        {
+                            if (op === "(")
+                            {
+                                break;
+                            } else if (operator_map[op] < level)
+                            {
+                                operator.push(op);
+                                break;
+                            } else
+                            {
+                                const value2 = numbers.pop();
+                                const value1 = numbers.pop();
+                                numbers.push({type: "expr", value1, value2, operator: op})
+                            }
+                        }
+                    }
+                }
+
+                operator.push(cur);
+
+
+            }
+        }
+        debugger
+        // console.log(numbers)
+        // console.log(operator)
+        let op;
+        while (op = operator.pop())
+        {
+            const value2 = numbers.pop();
+            const value1 = numbers.pop();
+            numbers.push({type: "expr", value1, value2, operator: op})
+        }
+
+        return numbers;
+    }
+
+
+    function eval_ast(ast)
+    {
+        if (ast.type === "number")
+        {
+            return +ast.value
+        }
+        if (ast.type === "expr")
+        {
+            if (ast.operator === "+")
+            {
+                return eval_ast(ast.value1) + eval_ast(ast.value2)
+            } else if (ast.operator === "-")
+            {
+                return eval_ast(ast.value1) - eval_ast(ast.value2)
+            } else if (ast.operator === "*")
+            {
+                return eval_ast(ast.value1) * eval_ast(ast.value2)
+            } else if (ast.operator === "/")
+            {
+                return eval_ast(ast.value1) / eval_ast(ast.value2)
+            } else if (ast.operator === "**")
+            {
+                return eval_ast(ast.value1) ** eval_ast(ast.value2)
+            }
+        }
+    }
+
+    const expr1 = "1 + 2 - 3"
+    const expr2 = "1 + 2 * 3 - 6 / 8 + 2 * 9"
+    const expr3 = "1 + 2 - 3 + 4 - 5"
+    const expr4 = "2 ** 2 ** 3 - 2 * 8 ** 2 ** 3 + 9 ** 3 ** 2"
+    const expr5 = "2 * ( 1 + 3 - 2 ** 2 ** 3 )"
+
+    const expr6 = "1.145364565464546 + 2.88992123 + 6 * 3.89112 - ( 8 - 6.00002342 ) / ( 20 + 3.234253453 ) * ( 88 - 98 ) * 999.3453536339 / 8888.234299543342324 * 6 + ( 777 - 88 ) * ( 96 - 3 )"
+
+
+    const expr7 = "1 + 2 / 6 * 8";
+    const expr8 = "1 + 2 / 6 * ( 8 ** 2 ) ** 2";
+    const expr9 = "1 + 2 / 6 * 8 ** 2 ** ( 3 * 4 )";
+    // debugger
+    const ast = parser(expr9.split(" "))[0];
+    console.log(ast)
+    const ret = eval_ast(ast);
+    console.log(ret)
+
+</script>
+</body>
+</html>
