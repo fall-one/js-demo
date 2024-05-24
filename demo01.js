@@ -118,10 +118,12 @@ const {calc: calc2_43, calc_memo: calc_memo2_43} = require("./a-calc2_43.js")
 
 // 2.0.0正式版
 const {calc: calc2, calc_memo: calc_memo2} = require("./a-calc2.0.0.js")
+// 2.1.0 正式版
+const {calc: calc21} = require("./a-calc2.1.0.js")
 
 
 // 测速函数
-const times = 200000;
+const times = 2000;
 
 const params_out = [
     [`1 + 1 + ${Math.random()}`],
@@ -272,6 +274,8 @@ test_speed(calc_memo2, "a-calc2.0.0 memo常规模式")
 // test_speed(calc_memo2_43, "a-calc2.43 space memo模式", {_mode: "space"})
 test_speed(calc2, "a-calc2.0.0 space模式", {_mode: "space"})
 test_speed(calc_memo2, "a-calc2.0.0 space memo模式", {_mode: "space"})
+test_speed(calc21, "a-calc2.1.0 常规模式")
+test_speed(calc21, "a-calc2.1.0 space模式", {_mode: "space"})
 test_speed(mcalc, "math-expression-evaluator")
 test_speed(mathjs, "mathjs")
 test_speed(decimal_eval, "decimal_eval")
