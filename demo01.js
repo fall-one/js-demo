@@ -120,10 +120,13 @@ const {calc: calc2_43, calc_memo: calc_memo2_43} = require("./a-calc2_43.js")
 const {calc: calc2, calc_memo: calc_memo2} = require("./a-calc2.0.0.js")
 // 2.1.0 正式版
 const {calc: calc21} = require("./a-calc2.1.0.js")
+// 2.2.0 正式版
+const {calc: calc22, calc_lite} = require("./a-calc2.2.0.js")
+const {calc: calc221, calc_lite: calc_lite221} = require("./a-calc2.2.1.js")
 
 
 // 测速函数
-const times = 2000;
+const times = 200000;
 
 const params_out = [
     [`1 + 1 + ${Math.random()}`],
@@ -132,6 +135,7 @@ const params_out = [
     [`1 + ( 2 * ( 3 + ( 9 * ${Math.random()} ) ) )`],
     [`1.145364565464546 + 2.88992123 + 6 * ${Math.random()} - ( 8 - 6.00002342 ) / ( 20 + 3.234253453 ) * ( 88 - 98 ) * 999.3453536339 / 8888.234299543342324 * 6 + ( 777 - 88 ) * ( 96 - 3 )`]
 ]
+
 
 function test_speed(calc_fn, print_name, inner_param)
 {
@@ -217,7 +221,7 @@ test_speed(calc, "a-calc1.x")
 // test_speed(calc2_43, "a-calc2.43常规模式")
 // test_speed(calc_memo2_43, "a-calc2.43 memo常规模式")
 test_speed(calc2, "a-calc2.0.0常规模式")
-test_speed(calc_memo2, "a-calc2.0.0 memo常规模式")
+// test_speed(calc_memo2, "a-calc2.0.0 memo常规模式")
 // test_speed(calc2_1, "calc2_1 space模式", {_mode: "space"})
 // test_speed(calc2_2, "calc2_2 space模式", {_mode: "space"})
 // test_speed(calc2_3, "calc2_3 space模式", {_mode: "space"})
@@ -273,9 +277,11 @@ test_speed(calc_memo2, "a-calc2.0.0 memo常规模式")
 // test_speed(calc2_43, "a-calc2.43 space模式", {_mode: "space"})
 // test_speed(calc_memo2_43, "a-calc2.43 space memo模式", {_mode: "space"})
 test_speed(calc2, "a-calc2.0.0 space模式", {_mode: "space"})
-test_speed(calc_memo2, "a-calc2.0.0 space memo模式", {_mode: "space"})
+// test_speed(calc_memo2, "a-calc2.0.0 space memo模式", {_mode: "space"})
 test_speed(calc21, "a-calc2.1.0 常规模式")
 test_speed(calc21, "a-calc2.1.0 space模式", {_mode: "space"})
+test_speed(calc_lite, "a-calc2.2.0 calc_lite")
+test_speed(calc_lite221, "a-calc2.2.1 calc_lite")
 test_speed(mcalc, "math-expression-evaluator")
 test_speed(mathjs, "mathjs")
 test_speed(decimal_eval, "decimal_eval")
